@@ -54,7 +54,7 @@ public class Main {
 
 		System.out.println("Starting search");
 		int finalNeededCount = neededCount;
-		LongStream.range(starting,1L<<48).forEach(ws->runNormal(finalNeededCount,ws,regionRadius,centerRegionX,centerRegionZ));
+		LongStream.range(starting,1L<<48).parallel().forEach(ws->runNormal(finalNeededCount,ws,regionRadius,centerRegionX,centerRegionZ));
 
 		//runNormal(neededCount, worldSeed, regionRadius, centerRegionX, centerRegionZ);
 
