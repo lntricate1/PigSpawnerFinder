@@ -1,5 +1,7 @@
 package PigSpawnerFinder.spiderfinder;
 
+import kaptainwutax.mcutils.util.math.DistanceMetric;
+
 public class Spawner {
     public int x, y, z;
     public Direction direction;
@@ -11,6 +13,10 @@ public class Spawner {
         this.z = z;
         this.direction = direction;
         this.length = length;
+    }
+
+    public double getDistSq(Spawner spawner){
+        return DistanceMetric.EUCLIDEAN_SQ.getDistance(this.x-spawner.x,this.y- spawner.y,this.z- spawner.z);
     }
 
     @Override

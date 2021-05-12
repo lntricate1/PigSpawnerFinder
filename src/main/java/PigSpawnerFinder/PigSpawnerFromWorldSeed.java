@@ -18,7 +18,9 @@ import java.util.Set;
 import java.util.stream.IntStream;
 
 public class PigSpawnerFromWorldSeed {
-
+	static LCG skip2 = LCG.JAVA.combine(2);
+	static LCG skip8 = LCG.JAVA.combine(8);
+	static LCG skip3 = LCG.JAVA.combine(3);
 	// this is non optimized
 	public static void main(String[] args) {
 
@@ -110,9 +112,7 @@ public class PigSpawnerFromWorldSeed {
 		int m = spawner.length * 5;
 		LCG skipCeiling = LCG.JAVA.combine(m * 3L);
 		LCG skipCobwebs = LCG.JAVA.combine(m * 3L * 2L);
-		LCG skip2 = LCG.JAVA.combine(2);
-		LCG skip8 = LCG.JAVA.combine(8);
-		LCG skip3 = LCG.JAVA.combine(3);
+
 
 
 		int spawnerChunkX = spawner.x >> 4;
