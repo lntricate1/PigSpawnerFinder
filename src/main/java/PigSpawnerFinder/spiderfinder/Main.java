@@ -5,6 +5,7 @@ import PigSpawnerFinder.spiderfinder.Spawner;
 import PigSpawnerFinder.spiderfinder.Vec3i;
 
 import java.util.*;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 public class Main {
@@ -12,49 +13,49 @@ public class Main {
 	public static final int spawnerRegionRadius = regionSide / 2 + 8;
 
 	public static void main(String[] args) {
-		int centerX = 0;
-		int centerZ = 0;
-		int radius = 30;
-
-
-//		Scanner scanner = new Scanner(System.in);
-//		System.out.println("Enter world seed");
-//		long worldSeed = scanner.nextLong();
-//		System.out.println("Enter center X");
-//		int centerX = scanner.nextInt();
-//		System.out.println("Enter center Z");
-//		int centerZ = scanner.nextInt();
-//		System.out.println("Enter radius");
-//		int radius = scanner.nextInt();
-//		System.out.println("Enter number of spawners");
-//		int neededCount = scanner.nextInt();
-//		System.out.println("Enter number of threads");
-//		int threadCount = scanner.nextInt();
-
-		if (args.length<1){
-			System.out.println("java -jar <File>.jar <start> (<neededCount>)");
-			System.exit(1);
-		}
-
-		long starting = 0;
-		int neededCount = 8;
+		Scanner scanner = new Scanner(System.in);
+		System.out.println("Enter worldseed : ");
+		String ws = scanner.nextLine();
+		long worldSeed;
 		try {
-			starting=Long.parseLong(args[0]);
-			if (args.length>1){
-				neededCount=Integer.parseInt(args[1]);
-			}
-		}catch (Exception e){
-			e.printStackTrace();
-			System.exit(1);
+			worldSeed = Long.parseLong(ws);
+		} catch (NumberFormatException e) {
+			worldSeed = ws.hashCode();
+			System.err.println("You inputted a wrong world seed, we converted it to a string one " + worldSeed);
 		}
+		System.out.println("Using worldseed : " + worldSeed);
+		System.out.println("Enter minimum number of spawner you want : ");
+		String sz = scanner.nextLine();
+		int neededCount;
+		try {
+			neededCount = Integer.parseInt(sz);
+		} catch (NumberFormatException e) {
+			System.out.println("Sorry you inputed a wrong number (too large or something)");
+			e.printStackTrace();
+			return;
+		}
+		System.out.println("Enter half size to search for (in chunks) : ");
+		sz = scanner.nextLine();
+		int size;
+		try {
+			size = Integer.parseInt(sz);
+		} catch (NumberFormatException e) {
+			System.out.println("Sorry you inputed a wrong size (too large or something)");
+			e.printStackTrace();
+			return;
+		}
+		System.out.printf("Searching an area of %dx%d chunks\n",size*2,size*2);
+		for (int chunkX = -size; chunkX < size; chunkX++) {
+			int finalChunkX = chunkX;
+			long finalWorldSeed = worldSeed;
+			IntStream.range(-size, size).parallel().forEach(
+					chunkZ -> run(finalWorldSeed, finalChunkX, chunkZ,neededCount)
+			);
+		}
+		System.out.println("We are done, if you didn't see any result then something is wrong");
+		System.out.println("Press any key to quit");
+		String end = scanner.nextLine();
 
-		int regionRadius = (int)Math.ceil(radius / 16.0f / regionSide);
-		int centerRegionX = Math.floorMod(centerX, 16 * regionSide);
-		int centerRegionZ = Math.floorMod(centerZ, 16 * regionSide);
-
-		System.out.println("Starting search");
-		int finalNeededCount = neededCount;
-		LongStream.range(starting,1L<<48).parallel().forEach(ws->runNormal(finalNeededCount,ws,regionRadius,centerRegionX,centerRegionZ));
 
 		//runNormal(neededCount, worldSeed, regionRadius, centerRegionX, centerRegionZ);
 
@@ -100,24 +101,36 @@ public class Main {
 				ArrayList<Spawner> spawners = new ArrayList<>();
 				int chunkX = regionX * regionSide;
 				int chunkZ = regionZ * regionSide;
-				getSpawnersInArea(worldSeed, chunkX - spawnerRegionRadius, chunkZ + spawnerRegionRadius, chunkX - spawnerRegionRadius, chunkZ + spawnerRegionRadius, spawners);
 
-				for(Spawner spawner1 : spawners) {
-					int count = 0;
-					for(Spawner spawner2 : spawners) {
-						if(spawner1.getDistSq(spawner2) < 484) count++;
-					}
-
-					if(count >= neededCount) {
-						if(!found.containsKey(count)) found.put(count, new ArrayList<>());
-						if(!found.get(count).contains(spawner1)){
-							found.get(count).add(spawner1);
-						}
-					}
-				}
 			}
 		}
 
+		for(int count = neededCount; count < 20; count++){
+			if(found.containsKey(count)){
+				for(Spawner spawner : found.get(count)) {
+					System.out.printf("%d: FOUND /tp @p %d %d %d worldseed: %d\n",count,spawner.x,spawner.y,spawner.z,worldSeed);
+				}
+			}
+		}
+	}
+
+	public static  void run(long worldSeed, int chunkX, int chunkZ,int neededCount){
+		Map<Integer, ArrayList<Spawner>> found = new HashMap<>();
+		ArrayList<Spawner> spawners = new ArrayList<>();
+		MineshaftGenerator.generateForChunk(worldSeed, chunkX, chunkZ, false, spawners);
+		for(Spawner spawner1 : spawners) {
+			int count = 0;
+			for(Spawner spawner2 : spawners) {
+				if(spawner1.getDistSq(spawner2) < 484) count++;
+			}
+
+			if(count >= neededCount) {
+				if(!found.containsKey(count)) found.put(count, new ArrayList<>());
+				if(!found.get(count).contains(spawner1)){
+					found.get(count).add(spawner1);
+				}
+			}
+		}
 		for(int count = neededCount; count < 20; count++){
 			if(found.containsKey(count)){
 				for(Spawner spawner : found.get(count)) {
