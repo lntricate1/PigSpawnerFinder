@@ -17,15 +17,23 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Scanner;
 import java.util.Set;
-import java.util.stream.IntStream;
+
+import static java.lang.System.out;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class PigSpawnerFromWorldSeed {
 	public static final MCVersion version = MCVersion.v1_16_5;
 
 	// this is non optimized
 	public static void main(String[] args) {
-
 		Scanner scanner = new Scanner(System.in);
+		// int threads = Runtime.getRuntime().availableProcessors();
+		// int threadsSqr = (int) Math.sqrt(threads);
+		// System.out.printf("Using %dx%d out of the %d threads, you should use a computer with a square amount of " +
+		// 		"threads so 1 4 9 16 25 36... or provide number of targeted threads as args", threadsSqr, threadsSqr, threads);
+		// return;/*
 		System.out.println("Enter worldseed : ");
 		String ws = scanner.nextLine();
 		long worldSeed;
@@ -36,32 +44,73 @@ public class PigSpawnerFromWorldSeed {
 			System.err.println("You inputted a wrong world seed, we converted it to a string one " + worldSeed);
 		}
 		System.out.println("Using worldseed : " + worldSeed);
-		System.out.println("Enter half size to search for (in chunks) : ");
+		System.out.println("Enter the inner radius of the ring to search for (in chunks) [inclusive]: ");
 		String sz = scanner.nextLine();
-		int size;
+		int sizea;
 		try {
-			size = Integer.parseInt(sz);
+			sizea = Integer.parseInt(sz);
 		} catch (NumberFormatException e) {
-			System.out.println("Sorry you inputed a wrong size (too large or something)");
+			System.out.println("Sorry, you input a wrong size (too large or something)");
 			e.printStackTrace();
+			scanner.close();
 			return;
 		}
-		System.out.printf("Searching an area of %dx%d chunks\n", size * 2, size * 2);
-		for (int chunkX = -size; chunkX < size; chunkX++) {
-			int finalChunkX = chunkX;
-			long finalWorldSeed = worldSeed;
-			IntStream.range(-size, size).parallel().forEach(
-					chunkZ -> processForChunk(finalWorldSeed, finalChunkX, chunkZ)
-			);
+		System.out.println("Enter the outer radius of the ring to search for (in chunks) [exclusive]: ");
+		sz = scanner.nextLine();
+		int sizeb;
+		try {
+			sizeb = Integer.parseInt(sz);
+		} catch (NumberFormatException e) {
+			System.out.println("Sorry, you input a wrong size (too large or something)");
+			e.printStackTrace();
+			scanner.close();
+			return;
 		}
-		System.out.println("We are done, if you didn't see any STEP X (from 1 to 3, 3 being the final true one)\n" +
-				"Then you have a non possible worldseed or a too small of an area, remember those are rare.");
-		System.out.println("Press any key to quit");
-		String end = scanner.nextLine();
+		System.out.println("Do you want to find only quintuple clusters or singles too? [1=quintuple, 0=single]");
+		sz = scanner.nextLine();
+		scanner.close();
+		boolean quintuple = Integer.parseInt(sz)==1;
+
+		System.out.printf("Searching an area of %dx%d - %dx%d chunks",sizeb*2-2,sizeb*2-2,sizea*2,sizea*2);
+		System.out.println(" for " + (quintuple?"quintuple":"single") + " pig spawners");
+
+		System.out.println("Total chunks to search: " + ((2*sizeb-2)*(2*sizeb-2)-(2*sizea-2)*(2*sizea-2)));
+		for(int y = sizea;y < sizeb;y++){
+			if(y%1000==0)System.out.println("Checking layer "+y);
+			int[][] chunks = new int[2*y*2*y-(2*y-2)*(2*y-2)][2];
+			int i = 0;
+			for(int x = -y;x<y-1;x++){
+				chunks[i][0]=x;
+				chunks[i][1]=-y;
+				i++;
+			}
+			for(int z = -y+1;z<y;z++){
+				chunks[i][0]=-y;
+				chunks[i][1]=z;
+				i++;
+			}
+			for(int x = -y+1;x<y;x++){
+				chunks[i][0]=x;
+				chunks[i][1]=y-1;
+				i++;
+			}
+			for(int z = -y;z<y-1;z++){
+				chunks[i][0]=y-1;
+				chunks[i][1]=z;
+				i++;
+			}
+			long finalWorldSeed = worldSeed;
+			final ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+			for(final int[] chunk : chunks) {
+				exec.submit(() -> processForChunk(finalWorldSeed, chunk[0],chunk[1],quintuple));
+			}
+			exec.shutdown();
+			while(!exec.isTerminated()) Thread.yield();
+		}
+		//*/
 	}
 
-
-	public static void processForChunk(long worldSeed, int chunkX, int chunkZ) {
+	public static void processForChunk(long worldSeed, int chunkX, int chunkZ, boolean quintuple) {
 		ArrayList<Spawner> spawners = new ArrayList<>();
 		// get the spawner from the mineshaft
 		ArrayList<StructurePiece> pieces = MineshaftGenerator.generateForChunk(
@@ -72,12 +121,16 @@ public class PigSpawnerFromWorldSeed {
 
 			//Check spawner height
 			if (spawner.y < 58 || spawner.y > 59) continue;
+			// out.println(spawner.y);
 
+				// System.out.println("STEP 1: Spawner could work for : " + spawner);
+				// findOutIfCorrect(worldSeed, spawner);
 			//Check if it can be at 9 9 but not near supports
 			int spawnerChunkX = spawner.x >> 4;
 			int spawnerChunkZ = spawner.z >> 4;
 			int spawnerOffsetX = spawner.x & 15;
 			int spawnerOffsetZ = spawner.z & 15;
+			if(quintuple)
 			if (spawner.direction.axis == Direction.Axis.X && spawnerOffsetZ == 9 && (spawnerOffsetX == 8 || spawnerOffsetX == 10) ||
 					spawner.direction.axis == Direction.Axis.Z && spawnerOffsetX == 9 && (spawnerOffsetZ == 8 || spawnerOffsetZ == 10)) {
 
@@ -99,13 +152,37 @@ public class PigSpawnerFromWorldSeed {
 				}
 				if (piecesBeforeSpawner != 0) continue;
 
-				System.out.println("STEP 1: Spawner could work for : " + spawner);
-				findOutIfCorrect(worldSeed, spawner, chunkX, chunkZ);
+				// System.out.println("STEP 1: Spawner could work for : " + spawner);
+				findOutIfCorrect(worldSeed, spawner, chunkX, chunkZ, quintuple);
+			}
+			if(!quintuple)
+			if (spawner.direction.axis == Direction.Axis.X && spawnerOffsetZ == 9 ||
+					spawner.direction.axis == Direction.Axis.Z && spawnerOffsetX == 9) {
+
+				//Check if it isn't too close to mesa
+				if (Math.abs(spawnerChunkX) < 2 && Math.abs(spawnerChunkZ) < 2) continue;
+
+				// int piecesBeforeSpawner = 0;
+				// BlockBox spawnerBox = new BlockBox(spawner.x, spawner.y, spawner.z, spawner.x, spawner.y, spawner.z);
+				// BlockBox chunk = new BlockBox(spawnerChunkX << 4, 0, spawnerChunkZ << 4, (spawnerChunkX << 4) + 15, 255, (spawnerChunkZ << 4) + 15);
+				// for (StructurePiece piece : pieces) {
+				// 	if (piece.boundingBox.intersects(chunk)) {
+				// 		if (piece.boundingBox.intersects(spawnerBox)) break;
+				// 		else if (piece instanceof MineshaftGenerator.MineshaftCorridor) {
+				// 			piecesBeforeSpawner = 1;
+				// 			break;
+				// 		}
+				// 	}
+				// }
+				// if (piecesBeforeSpawner != 0) continue;
+
+				// System.out.println("STEP 1: Spawner could work for : " + spawner);
+				findOutIfCorrect(worldSeed, spawner, chunkX, chunkZ, quintuple);
 			}
 		}
 	}
 
-	public static void findOutIfCorrect(long worldseed, Spawner spawner, int chunkX, int chunkZ) {
+	public static void findOutIfCorrect(long worldseed, Spawner spawner, int chunkX, int chunkZ, boolean quintuple) {
 		ChunkRand rand = new ChunkRand();
 		// everything here can be handled with the structure seed only (the lower 48 bits)
 		long structureSeed = WorldSeed.toStructureSeed(worldseed);
@@ -125,16 +202,15 @@ public class PigSpawnerFromWorldSeed {
 		int spawnerOffsetZ = spawner.z & 15;
 		int spawnerOffset = spawner.direction.axis == Direction.Axis.X ? spawnerOffsetX : spawnerOffsetZ;
 
-
 		//Check for buried treasure
-		rand.setRegionSeed(structureSeed, spawnerChunkX, spawnerChunkZ, 10387320, version);
+		rand.setRegionSeed(structureSeed, spawnerChunkX, spawnerChunkZ, 10387320, MCVersion.v1_16);
 		if (rand.nextFloat() >= 0.01F) return;
 
 
 		//Check for cobwebs and spawner position
 		//The spawner piece is the first corridor piece generated in this chunk so there are no random calls before it
 		// the index and step are super specific to 1.16 (please document yourself)
-		rand.setDecoratorSeed(structureSeed, spawnerChunkX << 4, spawnerChunkZ << 4, 0, 3, version);
+		rand.setDecoratorSeed(structureSeed, spawnerChunkX << 4, spawnerChunkZ << 4, 0, 3, MCVersion.v1_16);
 
 		//   skip ceiling air blocks
 		rand.advance(skipCeiling);
@@ -154,17 +230,19 @@ public class PigSpawnerFromWorldSeed {
 		}
 
 		int spawnerShift = rand.nextInt(3) - 1;
+		if(quintuple) {
 		int spawnerShiftReal = spawner.direction == Direction.NORTH || spawner.direction == Direction.WEST ? -spawnerShift : spawnerShift;
 		if (spawnerOffset + spawnerShiftReal != 9) return;
+		}
 
 		//Check for no cobwebs near the spawner
 		// the index and step are super specific to 1.16 (please document yourself)
-		rand.setDecoratorSeed(structureSeed, spawnerChunkX << 4, spawnerChunkZ << 4, 0, 3, version);
+		rand.setDecoratorSeed(structureSeed, spawnerChunkX << 4, spawnerChunkZ << 4, 0, 3, MCVersion.v1_16);
 		rand.advance(skipCeiling);
 
-		boolean hasCobwebsNearby = false;
-		for (int y = 0; y < 2 && !hasCobwebsNearby; y++) {
-			for (int x = 0; x < 3 && !hasCobwebsNearby; x++) {
+		int cobwebsNearby = 0;
+		for (int y = 0; y < 2/* && !hasCobwebsNearby*/; y++) {
+			for (int x = 0; x < 3/* && !hasCobwebsNearby*/; x++) {
 				for (int z = 0; z < m; z++) {
 					boolean hasCobweb = rand.nextFloat() < 0.6F;
 					if (hasCobweb) {
@@ -175,18 +253,19 @@ public class PigSpawnerFromWorldSeed {
 										(y == 0 && x == 1 && z == (2 + spawnerShift + 1)) ||
 										(y == 0 && x == 1 && z == (2 + spawnerShift - 1))
 						) {
-							hasCobwebsNearby = true;
-							break;
+							cobwebsNearby ++;
+							// break;
 						}
 					}
 				}
 			}
 		}
-		if (hasCobwebsNearby) return;
+		if (cobwebsNearby == 5) return;
+		if (quintuple && cobwebsNearby!=0) return;
 
 		BPos spawnerPos = new BPos((spawnerChunkX << 4) + 9, spawner.y, (spawnerChunkZ << 4) + 9);
-		System.out.println("STEP 2: Spawner passed the buried treasure test : " + spawner);
-		processWorldSeed(worldseed, spawnerPos, chunkX, chunkZ);
+		// System.out.println("STEP 2: Spawner passed the buried treasure test : " + spawner);
+		processWorldSeed(worldseed, spawnerPos, chunkX, chunkZ, quintuple);
 
 	}
 
@@ -200,23 +279,35 @@ public class PigSpawnerFromWorldSeed {
 	}};
 
 
-	public static void processWorldSeed(long worldSeed, BPos spawnerPos, int chunkX, int chunkZ) {
+	public static void processWorldSeed(long worldSeed, BPos spawnerPos, int chunkX, int chunkZ, boolean quintuple) {
 		OverworldBiomeSource biomeSource;
 		OverworldChunkGenerator chunkGenerator;
 		CPos spawnerChunkPos = spawnerPos.toChunkPos();
-
 		//Check biomes
 		biomeSource = new OverworldBiomeSource(version, worldSeed);
 		// those two checks are super intensive, that's why we do it at last
+        
+		// boolean mesa = false;
+        // for(int x = -10;x<=10;x++)
+        //     for(int z = -10;z<=10;z++){
+        //         // out.println(x+", "+z);
+        //         // out.println(BADLANDS.contains(biomeSource.getBiomeForNoiseGen((spawnerChunkPos.getX()+x << 2) + 2, 0, (spawnerChunkPos.getZ()+z << 2) + 2).getId()));
+        //         if(BADLANDS.contains(biomeSource.getBiomeForNoiseGen((spawnerChunkPos.getX()+x << 2) + 2, 0, (spawnerChunkPos.getZ()+z << 2) + 2).getId())){
+        //         mesa = true;
+        //         break;
+        //         }
+        //     }
+        // if(!mesa) return;
 		if (!BADLANDS.contains(biomeSource.getBiomeForNoiseGen((chunkX << 2) + 2, 0, (chunkZ << 2) + 2).getId())) return;
 		if (biomeSource.getBiomeForNoiseGen((spawnerChunkPos.getX() << 2) + 2, 0, (spawnerChunkPos.getZ() << 2) + 2) != Biomes.BEACH) return;
-//            System.out.println("Good biomes: " + worldSeed);
+		out.println("Passed biome check: " + spawnerPos.getX() + ", " + spawnerPos.getZ());
 
 		//Check depth above spawner
 		chunkGenerator = new OverworldChunkGenerator(biomeSource);
 		int height = chunkGenerator.getHeightInGround(spawnerPos.getX(), spawnerPos.getZ());
 		int depth = height - spawnerPos.getY();
 		if (depth < 3 || depth > 6) return;
+		out.println("Passed depth check: " + spawnerPos.getX() + ", " + spawnerPos.getZ());
 
 		//Check depth nearby to avoid water
 		boolean good = true;
@@ -234,7 +325,7 @@ public class PigSpawnerFromWorldSeed {
 
 		System.out.printf("STEP 3 (FINAL) : Found spawner : /tp @p %d %d %d for worldseed %d\n",
 				spawnerPos.getX(), spawnerPos.getY(), spawnerPos.getZ(), worldSeed);
-		File file = new File("PigSpawnerResult.txt");
+				File file = new File("PigSpawnerResult.txt");
 		try {
 			boolean ignored = file.createNewFile();
 			FileWriter writer = new FileWriter(file, true);
@@ -244,7 +335,5 @@ public class PigSpawnerFromWorldSeed {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-
-
 	}
 }
