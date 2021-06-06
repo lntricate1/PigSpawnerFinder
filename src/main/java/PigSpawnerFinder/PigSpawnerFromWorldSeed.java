@@ -112,78 +112,57 @@ public class PigSpawnerFromWorldSeed {
 
 	public static void processForChunk(long worldSeed, int chunkX, int chunkZ, boolean quintuple) {
 		ArrayList<Spawner> spawners = new ArrayList<>();
+
 		// get the spawner from the mineshaft
 		ArrayList<StructurePiece> pieces = MineshaftGenerator.generateForChunk(
 				WorldSeed.toStructureSeed(worldSeed),
 				chunkX, chunkZ, true, spawners
 		);
-		for (Spawner spawner : spawners) {
 
+		for (Spawner spawner : spawners) {
 			//Check spawner height
 			if (spawner.y < 58 || spawner.y > 59) continue;
-			// out.println(spawner.y);
 
-				// System.out.println("STEP 1: Spawner could work for : " + spawner);
-				// findOutIfCorrect(worldSeed, spawner);
 			//Check if it can be at 9 9 but not near supports
 			int spawnerChunkX = spawner.x >> 4;
 			int spawnerChunkZ = spawner.z >> 4;
 			int spawnerOffsetX = spawner.x & 15;
 			int spawnerOffsetZ = spawner.z & 15;
-			if(quintuple)
-			if (spawner.direction.axis == Direction.Axis.X && spawnerOffsetZ == 9 && (spawnerOffsetX == 8 || spawnerOffsetX == 10) ||
-					spawner.direction.axis == Direction.Axis.Z && spawnerOffsetX == 9 && (spawnerOffsetZ == 8 || spawnerOffsetZ == 10)) {
+			boolean conditionX = spawner.direction.axis == Direction.Axis.X && spawnerOffsetZ == 9;
+			boolean conditionZ = spawner.direction.axis == Direction.Axis.Z && spawnerOffsetX == 9;
+			if (conditionX || conditionZ) {
+					//Check if it isn't too close to mesa
+					if (Math.abs(spawnerChunkX) < 2 && Math.abs(spawnerChunkZ) < 2) continue;
 
-				//Check if it isn't too close to mesa
-				if (Math.abs(spawnerChunkX) < 2 && Math.abs(spawnerChunkZ) < 2) continue;
+					if(quintuple){
+						if (!(conditionX && (spawnerOffsetX == 8 || spawnerOffsetX == 10) ||
+						conditionZ && (spawnerOffsetZ == 8 || spawnerOffsetZ == 10))) continue;
 
-				//Check if there are no other corridors in the same chunk generated before the one with the spawner (meaning no random calls before our corridor)
-				int piecesBeforeSpawner = 0;
-				BlockBox spawnerBox = new BlockBox(spawner.x, spawner.y, spawner.z, spawner.x, spawner.y, spawner.z);
-				BlockBox chunk = new BlockBox(spawnerChunkX << 4, 0, spawnerChunkZ << 4, (spawnerChunkX << 4) + 15, 255, (spawnerChunkZ << 4) + 15);
-				for (StructurePiece piece : pieces) {
-					if (piece.boundingBox.intersects(chunk)) {
-						if (piece.boundingBox.intersects(spawnerBox)) break;
-						else if (piece instanceof MineshaftGenerator.MineshaftCorridor) {
-							piecesBeforeSpawner = 1;
-							break;
+						//Check if there are no other corridors in the same chunk generated before the one with the spawner (meaning no random calls before our corridor)
+						int piecesBeforeSpawner = 0;
+						BlockBox spawnerBox = new BlockBox(spawner.x, spawner.y, spawner.z, spawner.x, spawner.y, spawner.z);
+						BlockBox chunk = new BlockBox(spawnerChunkX << 4, 0, spawnerChunkZ << 4, (spawnerChunkX << 4) + 15, 255, (spawnerChunkZ << 4) + 15);
+						for (StructurePiece piece : pieces) {
+							if (piece.boundingBox.intersects(chunk)) {
+								if (piece.boundingBox.intersects(spawnerBox)) break;
+								else if (piece instanceof MineshaftGenerator.MineshaftCorridor) {
+									piecesBeforeSpawner = 1;
+									break;
+								}
+							}
 						}
+						if (piecesBeforeSpawner != 0) continue;
 					}
-				}
-				if (piecesBeforeSpawner != 0) continue;
 
-				// System.out.println("STEP 1: Spawner could work for : " + spawner);
-				findOutIfCorrect(worldSeed, spawner, chunkX, chunkZ, quintuple);
-			}
-			if(!quintuple)
-			if (spawner.direction.axis == Direction.Axis.X && spawnerOffsetZ == 9 ||
-					spawner.direction.axis == Direction.Axis.Z && spawnerOffsetX == 9) {
-
-				//Check if it isn't too close to mesa
-				if (Math.abs(spawnerChunkX) < 2 && Math.abs(spawnerChunkZ) < 2) continue;
-
-				// int piecesBeforeSpawner = 0;
-				// BlockBox spawnerBox = new BlockBox(spawner.x, spawner.y, spawner.z, spawner.x, spawner.y, spawner.z);
-				// BlockBox chunk = new BlockBox(spawnerChunkX << 4, 0, spawnerChunkZ << 4, (spawnerChunkX << 4) + 15, 255, (spawnerChunkZ << 4) + 15);
-				// for (StructurePiece piece : pieces) {
-				// 	if (piece.boundingBox.intersects(chunk)) {
-				// 		if (piece.boundingBox.intersects(spawnerBox)) break;
-				// 		else if (piece instanceof MineshaftGenerator.MineshaftCorridor) {
-				// 			piecesBeforeSpawner = 1;
-				// 			break;
-				// 		}
-				// 	}
-				// }
-				// if (piecesBeforeSpawner != 0) continue;
-
-				// System.out.println("STEP 1: Spawner could work for : " + spawner);
-				findOutIfCorrect(worldSeed, spawner, chunkX, chunkZ, quintuple);
+					// System.out.println("STEP 1: Spawner could work for : " + spawner);
+					findOutIfCorrect(worldSeed, spawner, chunkX, chunkZ, quintuple);
 			}
 		}
 	}
 
 	public static void findOutIfCorrect(long worldseed, Spawner spawner, int chunkX, int chunkZ, boolean quintuple) {
 		ChunkRand rand = new ChunkRand();
+
 		// everything here can be handled with the structure seed only (the lower 48 bits)
 		long structureSeed = WorldSeed.toStructureSeed(worldseed);
 
@@ -194,7 +173,6 @@ public class PigSpawnerFromWorldSeed {
 		LCG skip8 = LCG.JAVA.combine(8);
 		LCG skip3 = LCG.JAVA.combine(3);
 
-
 		int spawnerChunkX = spawner.x >> 4;
 		int spawnerChunkZ = spawner.z >> 4;
 
@@ -203,14 +181,13 @@ public class PigSpawnerFromWorldSeed {
 		int spawnerOffset = spawner.direction.axis == Direction.Axis.X ? spawnerOffsetX : spawnerOffsetZ;
 
 		//Check for buried treasure
-		rand.setRegionSeed(structureSeed, spawnerChunkX, spawnerChunkZ, 10387320, MCVersion.v1_16);
+		rand.setRegionSeed(structureSeed, spawnerChunkX, spawnerChunkZ, 10387320, version);
 		if (rand.nextFloat() >= 0.01F) return;
-
 
 		//Check for cobwebs and spawner position
 		//The spawner piece is the first corridor piece generated in this chunk so there are no random calls before it
 		// the index and step are super specific to 1.16 (please document yourself)
-		rand.setDecoratorSeed(structureSeed, spawnerChunkX << 4, spawnerChunkZ << 4, 0, 3, MCVersion.v1_16);
+		rand.setDecoratorSeed(structureSeed, spawnerChunkX << 4, spawnerChunkZ << 4, 0, 3, version);
 
 		//   skip ceiling air blocks
 		rand.advance(skipCeiling);
@@ -230,9 +207,10 @@ public class PigSpawnerFromWorldSeed {
 		}
 
 		int spawnerShift = rand.nextInt(3) - 1;
+
 		if(quintuple) {
-		int spawnerShiftReal = spawner.direction == Direction.NORTH || spawner.direction == Direction.WEST ? -spawnerShift : spawnerShift;
-		if (spawnerOffset + spawnerShiftReal != 9) return;
+			int spawnerShiftReal = spawner.direction == Direction.NORTH || spawner.direction == Direction.WEST ? -spawnerShift : spawnerShift;
+			if (spawnerOffset + spawnerShiftReal != 9) return;
 		}
 
 		//Check for no cobwebs near the spawner
@@ -254,14 +232,13 @@ public class PigSpawnerFromWorldSeed {
 										(y == 0 && x == 1 && z == (2 + spawnerShift - 1))
 						) {
 							cobwebsNearby ++;
-							// break;
+							if (quintuple) return;
 						}
 					}
 				}
 			}
 		}
 		if (cobwebsNearby == 5) return;
-		if (quintuple && cobwebsNearby!=0) return;
 
 		BPos spawnerPos = new BPos((spawnerChunkX << 4) + 9, spawner.y, (spawnerChunkZ << 4) + 9);
 		// System.out.println("STEP 2: Spawner passed the buried treasure test : " + spawner);
@@ -283,21 +260,11 @@ public class PigSpawnerFromWorldSeed {
 		OverworldBiomeSource biomeSource;
 		OverworldChunkGenerator chunkGenerator;
 		CPos spawnerChunkPos = spawnerPos.toChunkPos();
+
 		//Check biomes
 		biomeSource = new OverworldBiomeSource(version, worldSeed);
+
 		// those two checks are super intensive, that's why we do it at last
-        
-		// boolean mesa = false;
-        // for(int x = -10;x<=10;x++)
-        //     for(int z = -10;z<=10;z++){
-        //         // out.println(x+", "+z);
-        //         // out.println(BADLANDS.contains(biomeSource.getBiomeForNoiseGen((spawnerChunkPos.getX()+x << 2) + 2, 0, (spawnerChunkPos.getZ()+z << 2) + 2).getId()));
-        //         if(BADLANDS.contains(biomeSource.getBiomeForNoiseGen((spawnerChunkPos.getX()+x << 2) + 2, 0, (spawnerChunkPos.getZ()+z << 2) + 2).getId())){
-        //         mesa = true;
-        //         break;
-        //         }
-        //     }
-        // if(!mesa) return;
 		if (!BADLANDS.contains(biomeSource.getBiomeForNoiseGen((chunkX << 2) + 2, 0, (chunkZ << 2) + 2).getId())) return;
 		if (biomeSource.getBiomeForNoiseGen((spawnerChunkPos.getX() << 2) + 2, 0, (spawnerChunkPos.getZ() << 2) + 2) != Biomes.BEACH) return;
 		out.println("Passed biome check: " + spawnerPos.getX() + ", " + spawnerPos.getZ());
