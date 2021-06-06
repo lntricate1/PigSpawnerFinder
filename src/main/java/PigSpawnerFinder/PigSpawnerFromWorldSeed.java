@@ -92,14 +92,14 @@ public class PigSpawnerFromWorldSeed {
 		System.out.println("Total chunks to search: " + ((2 * sizeb) * (2 * sizeb) -
 			(2 * sizea - 2) * (2 * sizea - 2)));
 
-		int threads = Runtime.getRuntime().availableProcessors();
+		int totalThreads = Runtime.getRuntime().availableProcessors();
+		int threads;
 		while(true){
-			System.out.printf("\nNumber of threads to use [1 to %d]: \n", threads);
+			System.out.printf("\nNumber of threads to use [1 to %d]: \n", totalThreads);
 			try {
 				line = scanner.nextLine();
-				int threadInput = Integer.parseInt(line);
-				if(threadInput >= 1 && threadInput <= threads){
-					threads = threadInput;
+				threads = Integer.parseInt(line);
+				if(threads >= 1 && threads <= totalThreads){
 					break;
 				} else System.out.println("Number out of bounds, try again");
 			} catch (NumberFormatException e) {
@@ -108,7 +108,7 @@ public class PigSpawnerFromWorldSeed {
 		}
 		
 		scanner.close();
-		System.out.printf("Using %d out of the %d available threads\n", threads, Runtime.getRuntime().availableProcessors());
+		System.out.printf("Using %d out of the %d available threads\n", threads, totalThreads);
 
 		for(int y = sizea;y <= sizeb;y++){
 			if(y % 1000 == 0 || y == sizea) System.out.println("Checking layer " + y);
