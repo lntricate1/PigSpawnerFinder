@@ -25,89 +25,126 @@ import java.util.concurrent.Executors;
 
 public class PigSpawnerFromWorldSeed {
 	public static final MCVersion version = MCVersion.v1_16_5;
+	public static int spawnerCount = 0;
 
 	// this is non optimized
 	public static void main(String[] args) {
 		Scanner scanner = new Scanner(System.in);
-		// int threads = Runtime.getRuntime().availableProcessors();
-		// int threadsSqr = (int) Math.sqrt(threads);
-		// System.out.printf("Using %dx%d out of the %d threads, you should use a computer with a square amount of " +
-		// 		"threads so 1 4 9 16 25 36... or provide number of targeted threads as args", threadsSqr, threadsSqr, threads);
-		// return;/*
-		System.out.println("Enter worldseed : ");
-		String ws = scanner.nextLine();
+
+		String line;
 		long worldSeed;
-		try {
-			worldSeed = Long.parseLong(ws);
-		} catch (NumberFormatException e) {
-			worldSeed = ws.hashCode();
-			System.err.println("You inputted a wrong world seed, we converted it to a string one " + worldSeed);
+		while(true){
+			System.out.println("Enter worldseed : ");
+			line = scanner.nextLine();
+			try {
+				worldSeed = Long.parseLong(line);
+				break;
+			} catch (NumberFormatException e) {
+				System.out.println("Invalid seed, try again");
+			}
 		}
 		System.out.println("Using worldseed : " + worldSeed);
-		System.out.println("Enter the inner radius of the ring to search for (in chunks) [inclusive]: ");
-		String sz = scanner.nextLine();
+
 		int sizea;
-		try {
-			sizea = Integer.parseInt(sz);
-		} catch (NumberFormatException e) {
-			System.out.println("Sorry, you input a wrong size (too large or something)");
-			e.printStackTrace();
-			scanner.close();
-			return;
+		while(true){
+			System.out.println("Enter the inner radius of the ring to search for (in chunks) [inclusive, 1 to 1,875,000]: ");
+			line = scanner.nextLine();
+			try {
+				sizea = Integer.parseInt(line);
+				if(sizea >= 1 && sizea <= 1875000) break;
+				else System.out.println("Number out of bounds, try again");
+			} catch (NumberFormatException e) {
+				System.out.println("Invalid number, try again");
+			}
 		}
-		System.out.println("Enter the outer radius of the ring to search for (in chunks) [exclusive]: ");
-		sz = scanner.nextLine();
+
 		int sizeb;
-		try {
-			sizeb = Integer.parseInt(sz);
-		} catch (NumberFormatException e) {
-			System.out.println("Sorry, you input a wrong size (too large or something)");
-			e.printStackTrace();
-			scanner.close();
-			return;
+		while(true){
+			System.out.println("Enter the outer radius of the ring to search for (in chunks) [inclusive, 1 to 1,875,000]: ");
+			line = scanner.nextLine();
+			try {
+				sizeb = Integer.parseInt(line);
+				if(sizeb >= 1 && sizeb <= 1875000) break;
+				else if (sizeb < sizea) System.out.println("Outer radius cannot be smaller than inner radius, try again");
+				else System.out.println("Number out of bounds, try again");
+			} catch (NumberFormatException e) {
+				System.out.println("Invalid number, try again");
+			}
 		}
-		System.out.println("Do you want to find only quintuple clusters or singles too? [1=quintuple, 0=single]");
-		sz = scanner.nextLine();
+
+		boolean quintuple;
+		while(true){
+			System.out.println("Do you want to find only quintuple clusters or singles too? [1=quintuple, 0=single]");
+			line = scanner.nextLine();
+			try {
+				quintuple = Integer.parseInt(line) == 1;
+				if(Integer.parseInt(line) == 0 || Integer.parseInt(line) == 1) break;
+				else System.out.println("Number isn't 0 or 1, try again");
+			} catch (NumberFormatException e) {
+				System.out.println("Invalid number, try again");
+			}
+		}
+
+		System.out.printf("\nSearching an area of %dx%d (outer radius) minus %dx%d (inner radius) chunks",
+			sizeb * 2, sizeb * 2, sizea * 2 - 2, sizea * 2 - 2);
+		System.out.println(" for " + (quintuple ? "quintuple" : "single") + " pig spawners");
+
+		System.out.println("Total chunks to search: " + ((2 * sizeb) * (2 * sizeb) -
+			(2 * sizea - 2) * (2 * sizea - 2)));
+
+		int threads = Runtime.getRuntime().availableProcessors();
+		while(true){
+			System.out.printf("\nNumber of threads to use [1 to %d]: \n", threads);
+			try {
+				line = scanner.nextLine();
+				int threadInput = Integer.parseInt(line);
+				if(threadInput >= 1 && threadInput <= threads){
+					threads = threadInput;
+					break;
+				} else System.out.println("Number out of bounds, try again");
+			} catch (NumberFormatException e) {
+				System.out.println("Invalid number, try again");
+			}
+		}
+		
 		scanner.close();
-		boolean quintuple = Integer.parseInt(sz)==1;
+		System.out.printf("Using %d out of the %d available threads\n", threads, Runtime.getRuntime().availableProcessors());
 
-		System.out.printf("Searching an area of %dx%d - %dx%d chunks",sizeb*2-2,sizeb*2-2,sizea*2,sizea*2);
-		System.out.println(" for " + (quintuple?"quintuple":"single") + " pig spawners");
-
-		System.out.println("Total chunks to search: " + ((2*sizeb-2)*(2*sizeb-2)-(2*sizea-2)*(2*sizea-2)));
-		for(int y = sizea;y < sizeb;y++){
-			if(y%1000==0)System.out.println("Checking layer "+y);
-			int[][] chunks = new int[2*y*2*y-(2*y-2)*(2*y-2)][2];
+		for(int y = sizea;y <= sizeb;y++){
+			if(y % 1000 == 0 || y == sizea) System.out.println("Checking layer " + y);
+			int[][] chunks = new int[ 2 * y * 2 * y - ( 2 * y - 2) * (2 * y - 2)][2];
 			int i = 0;
-			for(int x = -y;x<y-1;x++){
-				chunks[i][0]=x;
-				chunks[i][1]=-y;
+			for(int x = -y; x < y - 1; x++){
+				chunks[i][0]= x;
+				chunks[i][1]= -y;
 				i++;
 			}
-			for(int z = -y+1;z<y;z++){
-				chunks[i][0]=-y;
-				chunks[i][1]=z;
+			for(int z = -y + 1; z < y; z++){
+				chunks[i][0]= -y;
+				chunks[i][1]= z;
 				i++;
 			}
-			for(int x = -y+1;x<y;x++){
-				chunks[i][0]=x;
-				chunks[i][1]=y-1;
+			for(int x = -y + 1; x < y; x++){
+				chunks[i][0]= x;
+				chunks[i][1]= y-1;
 				i++;
 			}
-			for(int z = -y;z<y-1;z++){
-				chunks[i][0]=y-1;
-				chunks[i][1]=z;
+			for(int z = -y; z < y - 1; z++){
+				chunks[i][0]= y-1;
+				chunks[i][1]= z;
 				i++;
 			}
 			long finalWorldSeed = worldSeed;
-			final ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+			boolean quintuple_ = quintuple;
+			final ExecutorService exec = Executors.newFixedThreadPool(threads);
 			for(final int[] chunk : chunks) {
-				exec.submit(() -> processForChunk(finalWorldSeed, chunk[0],chunk[1],quintuple));
+				exec.submit(() -> processForChunk(finalWorldSeed, chunk[0],chunk[1], quintuple_));
 			}
 			exec.shutdown();
 			while(!exec.isTerminated()) Thread.yield();
 		}
-		//*/
+		System.out.printf("Pig spawner finder finished, found %d pig spawners.\n", spawnerCount);
+		System.out.println("If spawners were found, they will be in the \"PigSpawnerResult.txt\" file in the same directory as this .jar");
 	}
 
 	public static void processForChunk(long worldSeed, int chunkX, int chunkZ, boolean quintuple) {
@@ -292,7 +329,8 @@ public class PigSpawnerFromWorldSeed {
 
 		System.out.printf("STEP 3 (FINAL) : Found spawner : /tp @p %d %d %d for worldseed %d\n",
 				spawnerPos.getX(), spawnerPos.getY(), spawnerPos.getZ(), worldSeed);
-				File file = new File("PigSpawnerResult.txt");
+		spawnerCount++;
+		File file = new File("PigSpawnerResult.txt");
 		try {
 			boolean ignored = file.createNewFile();
 			FileWriter writer = new FileWriter(file, true);
